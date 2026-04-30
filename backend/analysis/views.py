@@ -52,6 +52,8 @@ def matrix_view(request, problem_pk):
             'dimension': n,
             'matrix_data': matrix_data,
             'normalized_data': result['normalized'],
+            'column_sums': result['column_sums'],
+            'row_sums': result['row_sums'],
             'weights': result['weights'],
             'lambda_max': consistency['lambda_max'],
             'consistency_index': consistency['consistency_index'],
@@ -90,12 +92,11 @@ def validate_matrix(request, problem_pk):
 @permission_classes([IsAuthenticated])
 @transaction.atomic
 def analyze(request, problem_pk):
-    """Run full AHP analysis and store results."""
+    """Run full AHP analysis (INFO 4178 variant) and store results."""
     problem = _get_problem_or_404(request, problem_pk)
     if problem is None:
         return Response({'detail': 'Problème non trouvé.'}, status=404)
 
-    # Check matrix
     try:
         matrix_obj = ComparisonMatrix.objects.get(problem=problem, matrix_type='criteria')
     except ComparisonMatrix.DoesNotExist:
@@ -104,102 +105,78 @@ def analyze(request, problem_pk):
     criteria = list(problem.criteria.all().order_by('order', 'created_at'))
     alternatives = list(problem.alternatives.all().order_by('order', 'created_at'))
 
-    if len(criteria) < 2:
-        return Response({'error': 'Au moins 2 critères sont requis.'}, status=400)
-    if len(alternatives) < 2:
-        return Response({'error': 'Au moins 2 alternatives sont requises.'}, status=400)
+    if len(criteria) < 2 or len(alternatives) < 2:
+        return Response({'error': 'Au moins 2 critères et 2 alternatives sont requis.'}, status=400)
 
-    # Build criteria_weights dict from saved matrix weights
     weights_list = matrix_obj.weights or []
-    if len(weights_list) != len(criteria):
-        return Response({'error': 'Dimension de la matrice ne correspond pas aux critères.'}, status=400)
-
     criteria_weights = {str(c.id): w for c, w in zip(criteria, weights_list)}
 
-    # Collect alternative scores, normalize them per criterion
-    scores_by_alt: dict = {}
+    # Collect raw alternative scores
+    scores_raw: dict = {}
     for alt in alternatives:
-        scores_by_alt[str(alt.id)] = {}
+        scores_raw[str(alt.id)] = {}
         for crit in criteria:
             score_obj = AlternativeScore.objects.filter(alternative=alt, criterion=crit).first()
-            raw_score = 0.0
+            val = 0.0
             if score_obj:
-                if score_obj.numeric_score is not None:
-                    raw_score = float(score_obj.numeric_score)
-                elif score_obj.scale_preference:
-                    raw_score = float(score_obj.scale_preference.value)
-            scores_by_alt[str(alt.id)][str(crit.id)] = raw_score
+                val = float(score_obj.numeric_score) if score_obj.numeric_score is not None else float(score_obj.scale_preference.value if score_obj.scale_preference else 0.0)
+            scores_raw[str(alt.id)][str(crit.id)] = val
 
-    # Normalize scores per criterion (min-max to [0,1])
-    for crit in criteria:
-        cid = str(crit.id)
-        vals = [scores_by_alt[str(a.id)][cid] for a in alternatives]
-        min_v, max_v = min(vals), max(vals)
-        span = max_v - min_v if max_v != min_v else 1.0
-        for alt in alternatives:
-            scores_by_alt[str(alt.id)][cid] = (scores_by_alt[str(alt.id)][cid] - min_v) / span
+    # Synthesis: Total Weight = sum(RawValue * Weight) as per INFO 4178 Step vii
+    final_scores = {}
+    for alt_id, scores in scores_raw.items():
+        final_scores[alt_id] = sum(scores[cid] * criteria_weights[cid] for cid in criteria_weights)
 
-    final_scores = AHPCalculator.calculate_alternative_scores(scores_by_alt, criteria_weights)
     ranking = AHPCalculator.generate_ranking(final_scores)
 
-    consistency_details = {
-        'lambda_max': matrix_obj.lambda_max,
-        'consistency_index': matrix_obj.consistency_index,
-        'consistency_ratio': matrix_obj.consistency_ratio,
-        'is_consistent': matrix_obj.is_consistent,
-    }
-
-    # Best alternative
-    best = ranking[0]
-    best_alt_name = next(str(a.name) for a in alternatives if str(a.id) == best['alternative_id'])
-
-    # Stats
-    score_vals = list(final_scores.values())
-    avg = float(np.mean(score_vals))
-    std = float(np.std(score_vals))
-
-    # Inconsistency info
+    # Inconsistency info (INF4178 epsilon approach)
     inconsistency_reasons = []
-    if not matrix_obj.is_consistent:
-        inconsistency_reasons.append(
-            f"CR = {matrix_obj.consistency_ratio:.3f} > 0.1 : Matrice incohérente. Révisez vos comparaisons."
-        )
+    detailed_consistency = AHPCalculator.check_consistency(matrix_obj.matrix_data, matrix_obj.weights)
+    
+    if not detailed_consistency['is_consistent']:
+        names = [c.name for c in criteria]
+        pairs = AHPCalculator.get_inconsistent_pairs(matrix_obj.matrix_data, matrix_obj.weights, names)
+        for p in pairs:
+            inconsistency_reasons.append(
+                f"Paire problématique : {p['pair']} (Val={p['actual']:.2f}, Attendu={p['expected']:.2f})"
+            )
+        detailed_consistency['inconsistent_pairs'] = pairs
 
-    # Update alternative ranks and scores
+    # Update alternative ranks and final scores in DB
     for item in ranking:
         alt = next(a for a in alternatives if str(a.id) == item['alternative_id'])
         alt.final_score = item['score']
         alt.rank = item['rank']
         alt.save(update_fields=['final_score', 'rank'])
 
-    # Update criteria weights
+    # Update criteria weights in DB
     for crit in criteria:
         crit.weight = criteria_weights.get(str(crit.id), 0.0)
         crit.save(update_fields=['weight'])
 
-    # Update problem status
     problem.status = 'completed'
     problem.save(update_fields=['status'])
 
-    # Store result
     result_obj, _ = AnalysisResult.objects.update_or_create(
         problem=problem,
         defaults={
             'criteria_weights': criteria_weights,
             'criteria_matrix': matrix_obj.matrix_data,
             'criteria_matrix_normalized': matrix_obj.normalized_data,
+            'criteria_column_sums': matrix_obj.column_sums,
+            'criteria_row_sums': matrix_obj.row_sums,
             'alternative_scores': final_scores,
-            'alternative_scores_raw': scores_by_alt,
+            'alternative_scores_raw': scores_raw,
             'ranking': ranking,
-            'best_alternative_id': best['alternative_id'],
-            'best_alternative_name': best_alt_name,
-            'best_alternative_score': best['score'],
+            'best_alternative_id': ranking[0]['alternative_id'],
+            'best_alternative_name': next(a.name for a in alternatives if str(a.id) == ranking[0]['alternative_id']),
+            'best_alternative_score': ranking[0]['score'],
             'is_consistent': matrix_obj.is_consistent,
             'consistency_ratio': matrix_obj.consistency_ratio,
-            'consistency_details': consistency_details,
+            'consistency_details': detailed_consistency,
             'inconsistency_reasons': inconsistency_reasons,
-            'average_score': avg,
-            'std_deviation': std,
+            'average_score': float(np.mean(list(final_scores.values()))),
+            'std_deviation': float(np.std(list(final_scores.values()))),
         }
     )
 
@@ -217,7 +194,7 @@ def results(request, problem_pk):
         result_obj = AnalysisResult.objects.get(problem=problem)
         return Response(AnalysisResultSerializer(result_obj).data)
     except AnalysisResult.DoesNotExist:
-        return Response({'detail': 'Aucun résultat. Lancez d\'abord l\'analyse.'}, status=404)
+        return Response({'detail': 'Aucun résultat.'}, status=404)
 
 
 def _get_problem_or_404(request, problem_pk):

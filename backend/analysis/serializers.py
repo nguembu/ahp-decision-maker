@@ -7,7 +7,7 @@ class ComparisonMatrixSerializer(serializers.ModelSerializer):
         model = ComparisonMatrix
         fields = [
             'id', 'matrix_type', 'dimension', 'matrix_data',
-            'normalized_data', 'weights',
+            'normalized_data', 'column_sums', 'row_sums', 'weights',
             'lambda_max', 'consistency_index', 'consistency_ratio', 'is_consistent',
             'created_at', 'updated_at'
         ]
@@ -23,7 +23,7 @@ class AnalysisResultSerializer(serializers.ModelSerializer):
         model = AnalysisResult
         fields = [
             'id', 'problem',
-            'criteria_weights', 'criteria_matrix', 'criteria_matrix_normalized',
+            'criteria_weights', 'criteria_matrix', 'criteria_matrix_normalized', 'criteria_column_sums', 'criteria_row_sums',
             'alternative_scores', 'alternative_scores_raw', 'ranking',
             'best_alternative_id', 'best_alternative_name', 'best_alternative_score',
             'is_consistent', 'consistency_ratio', 'consistency_details', 'inconsistency_reasons',

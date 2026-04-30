@@ -148,10 +148,19 @@ function Step2({ problemId, onNext, onBack }) {
     try {
       const { data } = await problemAPI.createCriterion(problemId, { ...form, order: criteria.length });
       setCriteria([...criteria, data]);
-      setForm({ name: '', description: '', criterion_type: 'quantitative' });
+      setForm({ name: '', description: '', criterion_type: 'quantitative', direction: 'benefit' });
     } catch (err) {
-      setError(err.response?.data?.name?.[0] || err.response?.data?.non_field_errors?.[0] || 'Erreur.');
+      setError('Erreur lors de l\'ajout du critère.');
     } finally { setSaving(false); }
+  };
+
+  const updateCriterion = async (cid, field, value) => {
+    try {
+      const { data } = await problemAPI.updateCriterion(problemId, cid, { [field]: value });
+      setCriteria(criteria.map(c => c.id === cid ? data : c));
+    } catch (err) {
+      console.error('Error updating criterion:', err);
+    }
   };
 
   const removeCriterion = async (id) => {
@@ -198,9 +207,26 @@ function Step2({ problemId, onNext, onBack }) {
                   <span style={{ color: 'var(--color-primary)', fontWeight: 700, minWidth: '1.5rem' }}>{i + 1}</span>
                   <div style={{ flex: 1 }}>
                     <span style={{ fontWeight: 600 }}>{c.name}</span>
-                    <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                      {c.criterion_type === 'quantitative' ? '📊' : '🏷️'} {c.criterion_type}
-                    </span>
+                    <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.2rem' }}>
+                      <select
+                        className="input-minimal"
+                        value={c.criterion_type}
+                        onChange={(e) => updateCriterion(c.id, 'criterion_type', e.target.value)}
+                        style={{ fontSize: '0.7rem', padding: '1px 4px', width: 'auto' }}
+                      >
+                        <option value="quantitative">Quantitatif</option>
+                        <option value="categorical">Catégorique</option>
+                      </select>
+                      <select
+                        className="input-minimal"
+                        value={c.direction || 'benefit'}
+                        onChange={(e) => updateCriterion(c.id, 'direction', e.target.value)}
+                        style={{ fontSize: '0.7rem', padding: '1px 4px', width: 'auto' }}
+                      >
+                        <option value="benefit">📈 Bénéfice (+ est mieux)</option>
+                        <option value="cost">📉 Coût (- est mieux)</option>
+                      </select>
+                    </div>
                   </div>
                   <button className="btn btn-danger btn-sm" onClick={() => removeCriterion(c.id)}>✕</button>
                 </div>
@@ -683,7 +709,7 @@ function Step6({ problemId, problemTitle, criteria, alternatives, onBack, onRest
             <tbody>
               {criteria.map((cRow, i) => (
                 <tr key={cRow.id}>
-                  <td style={{ fontWeight: 700 }}>{cRow.name}</td>
+                  <td style={{ fontWeight: 700, background: 'rgba(var(--color-primary-rgb), 0.05)' }}>{cRow.name}</td>
                   {criteria.map((cCol, j) => (
                     <td key={cCol.id}>
                       {result.criteria_matrix?.[i]?.[j]?.toFixed(3) || '-'}
@@ -692,76 +718,65 @@ function Step6({ problemId, problemTitle, criteria, alternatives, onBack, onRest
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr style={{ background: 'rgba(var(--color-primary-rgb), 0.1)' }}>
+                <td style={{ fontWeight: 700 }}>SUM (Col)</td>
+                {criteria.map((_, j) => (
+                  <td key={j} style={{ fontWeight: 800, color: 'var(--color-primary)' }}>
+                    {result.criteria_column_sums?.[j]?.toFixed(5) || '-'}
+                  </td>
+                ))}
+              </tr>
+            </tfoot>
           </table>
         </div>
       </div>
 
       <div style={{ marginBottom: '3rem' }}>
         <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1rem', color: 'var(--color-primary)' }}>
-          iv. Matrice de Comparaison Normalisée
+          iv. Matrice Normalisée & Poids
         </h3>
+        <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '1rem' }}>
+          La normalisation est effectuée par colonne (Élément / Somme de la colonne) pour chaque critère.
+        </p>
         <div className="table-wrapper card glass">
           <table>
             <thead>
               <tr>
                 <th>Critères</th>
-                {criteria.map(c => <th key={c.id}>{c.name}</th>)}
+                {criteria.map((_, idx) => <th key={idx}>C{idx + 1}</th>)}
+                <th style={{ background: 'var(--color-primary)', color: 'white' }}>Poids (Moyenne)</th>
               </tr>
             </thead>
             <tbody>
               {criteria.map((cRow, i) => (
                 <tr key={cRow.id}>
-                  <td style={{ fontWeight: 700 }}>{cRow.name}</td>
-                  {criteria.map((cCol, j) => (
-                    <td key={cCol.id}>
-                      {result.criteria_matrix_normalized?.[i]?.[j]?.toFixed(4) || '-'}
+                  <td style={{ fontWeight: 700, background: 'rgba(var(--color-primary-rgb), 0.05)' }}>{cRow.name}</td>
+                  {criteria.map((_, j) => (
+                    <td key={j}>
+                      {result.criteria_matrix_normalized?.[i]?.[j]?.toFixed(5) || '-'}
                     </td>
                   ))}
+                  <td style={{ fontWeight: 800, color: 'var(--color-primary)' }}>
+                    {result.criteria_weights[cRow.id]?.toFixed(6)}
+                  </td>
                 </tr>
               ))}
             </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div style={{ marginBottom: '3rem' }}>
-        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1rem', color: 'var(--color-primary)' }}>
-          v. Poids des Critères
-        </h3>
-        <div className="grid grid-2" style={{ gap: '2rem', alignItems: 'center' }}>
-          <div className="table-wrapper card glass">
-            <table>
-              <thead>
-                <tr>
-                  <th>Critère</th>
-                  <th>Poids Prioritaire</th>
-                </tr>
-              </thead>
-              <tbody>
-                {criteria.map(c => (
-                  <tr key={c.id}>
-                    <td>{c.name}</td>
-                    <td style={{ fontWeight: 700 }}>{((result.criteria_weights[c.id] || 0) * 100).toFixed(2)}%</td>
-                  </tr>
+            <tfoot>
+              <tr style={{ background: 'rgba(var(--color-primary-rgb), 0.1)' }}>
+                <td style={{ fontWeight: 700 }}>SUM (Col)</td>
+                {criteria.map((_, j) => (
+                  <td key={j} style={{ fontWeight: 800 }}>
+                    1.00000
+                  </td>
                 ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="card glass" style={{ height: '300px' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={weightData}>
-                <PolarGrid stroke="var(--color-border)" />
-                <PolarAngleAxis dataKey="name" tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }} />
-                <Radar
-                   name="Poids"
-                   dataKey="weight"
-                   stroke="var(--color-primary)"
-                   fill="var(--color-primary)"
-                   fillOpacity={0.4}
-                />
-              </RadarChart>
-            </ResponsiveContainer>
-          </div>
+                <td style={{ background: 'var(--color-primary)', color: 'white', fontWeight: 800 }}>
+                  1.00000
+                </td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       </div>
 
@@ -769,57 +784,108 @@ function Step6({ problemId, problemTitle, criteria, alternatives, onBack, onRest
         <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1rem', color: 'var(--color-primary)' }}>
           vi. Vérification de la Cohérence
         </h3>
+        
+        <div className="table-wrapper card glass" style={{ marginBottom: '1.5rem' }}>
+          <table>
+            <thead>
+              <tr>
+                <th>Critère</th>
+                <th>Somme Pondérée (Aw)</th>
+                <th>Poids (w)</th>
+                <th>λi (Aw / w)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {criteria.map((crit, i) => (
+                <tr key={crit.id}>
+                  <td style={{ fontWeight: 700 }}>{crit.name}</td>
+                  <td>{result.consistency_details?.weighted_sum?.[i]?.toFixed(5)}</td>
+                  <td>{result.criteria_weights[crit.id]?.toFixed(5)}</td>
+                  <td style={{ fontWeight: 700 }}>{result.consistency_details?.lambda_vector?.[i]?.toFixed(5)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
         <div className="grid grid-2" style={{ gap: '1.5rem' }}>
           <div className="card glass">
-            <h4 style={{ fontWeight: 700, marginBottom: '1rem', fontSize: '1rem' }}>Détails de calcul</h4>
+            <h4 style={{ fontWeight: 700, marginBottom: '1rem', fontSize: '1rem' }}>Conclusions (INFO 4178)</h4>
             <ul style={{ listStyle: 'none', padding: 0, fontSize: '0.9rem' }}>
               <li style={{ marginBottom: '0.6rem', display: 'flex', justifyContent: 'space-between' }}>
-                <span>λ max :</span> <b>{result.consistency_details?.lambda_max?.toFixed(4)}</b>
+                <span>λ max (Moyenne de λi) :</span> <b>{result.consistency_details?.lambda_max?.toFixed(5)}</b>
               </li>
               <li style={{ marginBottom: '0.6rem', display: 'flex', justifyContent: 'space-between' }}>
-                <span>Nombre de critères (n) :</span> <b>{criteria.length}</b>
+                <span>Indice CI :</span> <b>{result.consistency_details?.consistency_index?.toFixed(6)}</b>
               </li>
               <li style={{ marginBottom: '0.6rem', display: 'flex', justifyContent: 'space-between' }}>
-                <span>Indice CI :</span> <b>{result.consistency_details?.consistency_index?.toFixed(4)}</b>
+                <span>Indice RI (n={criteria.length}) :</span> <b>{result.consistency_details?.random_index}</b>
               </li>
               <li style={{ marginBottom: '0.6rem', display: 'flex', justifyContent: 'space-between' }}>
-                <span>Ratio CR :</span> <b style={{ color: result.is_consistent ? '#10b981' : '#ef4444' }}>{result.consistency_ratio?.toFixed(4)}</b>
+                <span>Ratio CR (CI / RI) :</span> <b style={{ color: result.is_consistent ? '#10b981' : '#ef4444' }}>{result.consistency_ratio?.toFixed(6)}</b>
               </li>
             </ul>
           </div>
-          <div className="card glass" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '1.5rem' }}>
-            <p style={{ lineHeight: 1.6, fontSize: '0.95rem' }}>
-              Le <b>CR est {result.is_consistent ? '< 0.10' : '> 0.10'}</b>. 
-              Ceci indique un processus de décision <b>{result.is_consistent ? 'cohérent' : 'incohérent'}</b>.
+          <div className="card glass" style={{ padding: '1.5rem', background: result.is_consistent ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.05)' }}>
+            <p style={{ lineHeight: 1.6, fontSize: '1rem', fontWeight: 700, marginBottom: '0.5rem' }}>
+              {result.is_consistent ? 
+                '✅ Les jugements sont COHÉRENTS (CR < 10%)' : 
+                '❌ Matrice INCOHÉRENTE (CR ≥ 10%)'
+              }
             </p>
+            {!result.is_consistent && result.consistency_details?.inconsistent_pairs?.length > 0 && (
+              <div style={{ fontSize: '0.85rem', marginTop: '1rem' }}>
+                <p style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Les jugements les plus problématiques :</p>
+                {result.consistency_details.inconsistent_pairs.map((p, idx) => (
+                  <div key={idx} style={{ marginBottom: '0.4rem', borderLeft: '2px solid #ef4444', paddingLeft: '0.5rem' }}>
+                    <b>{p.pair}</b> : vous avez mis <b>{p.actual.toFixed(2)}</b>, 
+                    attendu ~<b>{p.expected.toFixed(2)}</b> (écart: {p.epsilon.toFixed(2)})
+                  </div>
+                ))}
+                <p style={{ marginTop: '0.8rem', fontStyle: 'italic', color: 'var(--color-text-muted)' }}>
+                  Veuillez revenir à l'étape 2 pour réviser ces comparaisons.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      <div style={{ marginBottom: '3rem' }}>
+      <div style={{ marginBottom: '3rem', pageBreakInside: 'avoid' }}>
         <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1rem', color: 'var(--color-primary)' }}>
-          vii. Synthèse des Résultats (Global)
+          vii. Synthèse des Résultats
         </h3>
+        <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '1rem' }}>
+          Calcul du Poids Total = ∑ (Valeur brute × Poids du critère)
+        </p>
         <div className="table-wrapper card glass">
           <table>
             <thead>
               <tr>
-                <th>Alternatives</th>
-                {criteria.map(c => <th key={c.id} style={{ fontSize: '0.8rem' }}>{c.name}<br/>({((result.criteria_weights[c.id] || 0) * 100).toFixed(0)}%)</th>)}
-                <th style={{ background: 'var(--color-primary)', color: 'white' }}>Score (%)</th>
+                <th rowSpan="2">Alternatives</th>
+                <th colSpan={criteria.length} style={{ textAlign: 'center' }}>Données pondérées (Valeur × Poids)</th>
+                <th rowSpan="2" style={{ background: 'var(--color-primary)', color: 'white' }}>Poids Total</th>
+              </tr>
+              <tr>
+                {criteria.map(c => <th key={c.id} style={{ fontSize: '0.75rem' }}>{c.name}<br/>({(result.criteria_weights[c.id] * 100).toFixed(1)}%)</th>)}
               </tr>
             </thead>
             <tbody>
               {alternatives.map(alt => (
-                <tr key={alt.id} style={alt.id === result.best_alternative_id ? { background: 'rgba(245, 158, 11, 0.15)' } : {}}>
+                <tr key={alt.id} style={alt.id === result.best_alternative_id ? { background: 'rgba(245, 158, 11, 0.1)' } : {}}>
                   <td style={{ fontWeight: 700 }}>{alt.name}</td>
-                  {criteria.map(crit => (
-                    <td key={crit.id} style={{ fontSize: '0.85rem' }}>
-                      {result.alternative_scores_raw?.[alt.id]?.[crit.id]?.toFixed(3) || '0.000'}
-                    </td>
-                  ))}
-                  <td style={{ fontWeight: 800, color: 'var(--color-primary)' }}>
-                    {(result.alternative_scores[alt.id] * 100).toFixed(1)}%
+                  {criteria.map(crit => {
+                    const rawVal = result.alternative_scores_raw?.[alt.id]?.[crit.id] || 0;
+                    const weight = result.criteria_weights[crit.id] || 0;
+                    return (
+                      <td key={crit.id} style={{ fontSize: '0.8rem' }}>
+                        <div style={{ color: 'var(--color-text-muted)', fontSize: '0.7rem' }}>{rawVal} × {weight.toFixed(4)}</div>
+                        <div style={{ fontWeight: 600 }}>{(rawVal * weight).toFixed(2)}</div>
+                      </td>
+                    );
+                  })}
+                  <td style={{ fontWeight: 800, color: 'var(--color-primary)', fontSize: '1.1rem' }}>
+                    {result.alternative_scores[alt.id]?.toFixed(2)}
                   </td>
                 </tr>
               ))}

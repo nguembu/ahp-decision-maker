@@ -15,6 +15,8 @@ class ComparisonMatrix(models.Model):
     dimension = models.IntegerField()
     matrix_data = models.JSONField()
     normalized_data = models.JSONField(null=True, blank=True)
+    column_sums = models.JSONField(null=True, blank=True) # [...]
+    row_sums = models.JSONField(null=True, blank=True) # [...]
 
     # Calculated results
     weights = models.JSONField(null=True, blank=True)
@@ -42,6 +44,8 @@ class AnalysisResult(models.Model):
     criteria_weights = models.JSONField()         # {criterion_id: weight}
     criteria_matrix = models.JSONField(null=True) # [[...]]
     criteria_matrix_normalized = models.JSONField(null=True)
+    criteria_column_sums = models.JSONField(null=True) # [...]
+    criteria_row_sums = models.JSONField(null=True) # [...]
     alternative_scores = models.JSONField()       # {alternative_id: score}
     alternative_scores_raw = models.JSONField(null=True) # {alt_id: {crit_id: score}}
     ranking = models.JSONField()                  # [{rank, alternative_id, alternative_name, score, percentage}]

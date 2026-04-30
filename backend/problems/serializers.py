@@ -18,7 +18,7 @@ class CriterionSerializer(serializers.ModelSerializer):
         model = Criterion
         fields = [
             'id', 'name', 'description', 'criterion_type',
-            'scale_type', 'weight', 'order', 'scale_preferences',
+            'scale_type', 'direction', 'weight', 'order', 'scale_preferences',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['weight', 'created_at', 'updated_at']

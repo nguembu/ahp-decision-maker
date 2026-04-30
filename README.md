@@ -107,27 +107,10 @@ venv\Scripts\activate  # Windows
 # Installer les dépendances
 pip install -r requirements.txt
 
-# Créer le fichier .env
-cat > .env << EOF
-SECRET_KEY=your-secret-key-here
-DEBUG=True
-ALLOWED_HOSTS=localhost,127.0.0.1
-
-DB_ENGINE=django.db.backends.postgresql
-DB_NAME=ahp_db
-DB_USER=postgres
-DB_PASSWORD=password
-DB_HOST=localhost
-DB_PORT=5432
-
-CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
-EOF
 
 # Exécuter les migrations
 python manage.py migrate
 
-# Créer un superuser
-python manage.py createsuperuser
 
 # Démarrer le serveur
 python manage.py runserver
@@ -154,74 +137,10 @@ npm run dev
 
 L'application sera accessible à `http://localhost:5173`
 
-### Option 2: Docker Compose (Recommandé pour la production)
-
-```bash
-git clone https://github.com/yourusername/ahp-decision-maker.git
-cd ahp-decision-maker
-
-# Créer les fichiers .env
-cp .env.example .env
-cp .env.frontend.example .env.frontend
-
-# Démarrer les services
-docker-compose up -d
-
-# Exécuter les migrations
-docker-compose exec web python manage.py migrate
-
-# Créer un superuser
-docker-compose exec web python manage.py createsuperuser
-
-# Accéder à l'application
-# Frontend: http://localhost:3000
-# Backend: http://localhost:8000
-# Admin: http://localhost:8000/admin
-```
-
 ---
 
 ## ⚙️ Configuration
 
-### Variables d'Environnement Backend (.env)
-
-```env
-# Django
-SECRET_KEY=django-insecure-your-secret-key-here
-DEBUG=False
-ALLOWED_HOSTS=localhost,127.0.0.1,yourdomain.com
-
-# Database
-DB_ENGINE=django.db.backends.postgresql
-DB_NAME=ahp_db
-DB_USER=postgres
-DB_PASSWORD=your_secure_password
-DB_HOST=localhost
-DB_PORT=5432
-
-# CORS
-CORS_ALLOWED_ORIGINS=http://localhost:5173,https://yourdomain.com
-
-# Email (optionnel)
-EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
-EMAIL_HOST=smtp.gmail.com
-EMAIL_PORT=587
-EMAIL_USE_TLS=True
-EMAIL_HOST_USER=your_email@gmail.com
-EMAIL_HOST_PASSWORD=your_password
-
-# Security
-SECURE_SSL_REDIRECT=True
-SECURE_HSTS_SECONDS=31536000
-```
-
-### Variables d'Environnement Frontend (.env)
-
-```env
-VITE_API_URL=http://localhost:8000
-VITE_API_TIMEOUT=30000
-VITE_DEBUG=false
-```
 
 ---
 
@@ -263,51 +182,6 @@ VITE_DEBUG=false
 - Si CR > 0.1 : ❌ Réviser les comparaisons
 - Ranking final des alternatives
 - Graphiques et statistiques
-
----
-
-## 📚 Documentation
-
-### Guides Complets (150+ pages)
-
-1. **[SYNTHESE_CONCEPTION.md](docs/SYNTHESE_CONCEPTION.md)** ⭐ À LIRE D'ABORD
-   - Vue d'ensemble architecture
-   - Flux de travail utilisateur
-   - Stack technologique
-   - Quick reference
-
-2. **[01_ARCHITECTURE_FULLSTACK.md](docs/01_ARCHITECTURE_FULLSTACK.md)**
-   - Architecture complète
-   - Models Django
-   - API endpoints
-   - Formules mathématiques
-
-3. **[02_GUIDE_IMPLEMENTATION_DETAILLE.md](docs/02_GUIDE_IMPLEMENTATION_DETAILLE.md)**
-   - Setup phase par phase
-   - Code prêt à copier
-   - Migrations BD
-   - Tests
-
-4. **[03_RECAP_PARAMETRES_CHECKLIST.md](docs/03_RECAP_PARAMETRES_CHECKLIST.md)**
-   - Paramètres mathématiques
-   - Checklist complète
-   - Messages d'erreur
-   - Variables d'env
-
-5. **[04_EXEMPLES_CODE.md](docs/04_EXEMPLES_CODE.md)**
-   - Code complet models
-   - Serializers DRF
-   - Components React
-   - Configuration
-
-6. **[AHP_Application_Design.md](docs/AHP_Application_Design.md)**
-   - Design initial
-   - Exigences complètes
-   - Plan de développement
-
-### Autre Documentation
-- [API Reference](#-api-reference) (section ci-dessous)
-- Admin Django: `/admin`
 
 ---
 
@@ -404,69 +278,6 @@ npm test
 
 ---
 
-## 🚢 Déploiement
-
-### Heroku
-
-```bash
-# Créer app
-heroku create ahp-decision-maker
-
-# Ajouter PostgreSQL
-heroku addons:create heroku-postgresql:standard-0
-
-# Déployer
-git push heroku main
-
-# Exécuter migrations
-heroku run python manage.py migrate
-
-# Créer superuser
-heroku run python manage.py createsuperuser
-```
-
-### Railway / Render / Other
-
-Voir [01_ARCHITECTURE_FULLSTACK.md](docs/01_ARCHITECTURE_FULLSTACK.md) - Déploiement section
-
----
-
-## 🐛 Troubleshooting
-
-### Port 5173 déjà utilisé
-```bash
-# Changer le port dans vite.config.js
-# Ou:
-npm run dev -- --port 5174
-```
-
-### PostgreSQL ne démarre pas
-```bash
-# Vérifier que PostgreSQL est installé
-psql --version
-
-# Démarrer PostgreSQL
-# Windows: rechercher PostgreSQL et démarrer le service
-# Mac: brew services start postgresql
-# Linux: sudo systemctl start postgresql
-```
-
-### Erreur "Module not found"
-```bash
-# Backend
-pip install -r requirements.txt
-
-# Frontend
-npm install
-```
-
-### CORS error
-Vérifier `CORS_ALLOWED_ORIGINS` dans `.env` backend
-
-### Matrice incohérente (CR > 0.1)
-→ Voir [03_RECAP_PARAMETRES_CHECKLIST.md](docs/03_RECAP_PARAMETRES_CHECKLIST.md) - Troubleshooting
-
----
 
 ## 📞 Support
 
@@ -508,17 +319,31 @@ Ce projet est sous la licence MIT. Voir le fichier [LICENSE](LICENSE) pour plus 
 
 ## 👥 Auteurs
 
-- **Your Name** - Développeur principal
-- **Contributors** - [Liste ici]
+- **John NGUEMBU** - Développeur principal
 
 ---
 
 ## 🙏 Remerciements
 
 - [Saaty, T. L. (1980). The Analytic Hierarchy Process](https://en.wikipedia.org/wiki/Analytic_hierarchy_process)
-- Université de Yaoundé - Notes du cours AHP
+- notes du cours **INF4178**
+- Université de Yaoundé I
 - [Django Documentation](https://docs.djangoproject.com/)
 - [React Documentation](https://react.dev/)
+- [AHP Decision Making Guide](docs/AHP_GUIDE.md)
+
+---
+
+## 🎓 Projet INF4178 (Université de Yaoundé I)
+
+Ce projet a été réalisé dans le cadre du cours **INF4178 - Génie Logiciel**. Il implémente rigoureusement l'algorithme AHP de Saaty ainsi que les critères de cohérence (CI/CR) exigés par le standard académique.
+
+### Conformité au Guide INF4178 :
+- ✅ **Gestion complète des étapes** : Setup → Matrice → Scores → Résultats.
+- ✅ **Calcul du CR** avec table RI standard (n=1 à 10).
+- ✅ **Explication de l'incohérence** basée sur les écarts $\epsilon_{ij}$.
+- ✅ **Normalisation des scores** (Bénéfice vs Coût) avant synthèse.
+- ✅ **Interface responsive** et déploiement prêt pour Vercel.
 
 ---
 
@@ -569,9 +394,8 @@ Ce projet est sous la licence MIT. Voir le fichier [LICENSE](LICENSE) pour plus 
 <div align="center">
 
 **[Lire la Documentation Complète](docs/SYNTHESE_CONCEPTION.md)** •
-**[Voir les Examples](docs/04_EXEMPLES_CODE.md)** •
 **[API Reference](#-api-reference)** •
-**[Issues](https://github.com/yourusername/ahp-decision-maker/issues)**
+**[Issues](https://github.com/nguembu/ahp-decision-maker/issues)**
 
 </div>
 

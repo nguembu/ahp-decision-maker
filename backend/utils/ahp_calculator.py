@@ -16,60 +16,124 @@ class AHPCalculator:
         m = np.array(matrix, dtype=float)
         col_sums = m.sum(axis=0)
         # Avoid division by zero
-        col_sums[col_sums == 0] = 1
-        return (m / col_sums).tolist()
+        col_sums[col_sums == 0] = 1.0
+        normalized = m / col_sums
+        return normalized.tolist()
 
     @staticmethod
     def calculate_weights(normalized_matrix: List[List[float]]) -> List[float]:
-        """Calculate priority weights as row averages of the normalized matrix."""
-        m = np.array(normalized_matrix)
+        """Calculate weights as the average of each row in the normalized matrix."""
+        m = np.array(normalized_matrix, dtype=float)
         weights = m.mean(axis=1)
-        total = weights.sum()
-        if total > 0:
-            weights = weights / total
         return weights.tolist()
 
     @staticmethod
     def calculate_lambda_max(matrix: List[List[float]], weights: List[float]) -> float:
-        """Calculate λ_max for consistency checking."""
+        """Calculate λ_max for consistency checking using standard Mw."""
         m = np.array(matrix, dtype=float)
         w = np.array(weights, dtype=float)
+        # Standard: Aw_i = sum_j M_ij * w_j
         weighted_sum = m @ w
-        # λ_max = mean of (Aw_i / w_i) for each i
         ratios = weighted_sum / (w + 1e-10)
         return float(np.mean(ratios))
 
     @staticmethod
     def check_consistency(matrix: List[List[float]], weights: List[float]) -> Dict:
-        """Return CI, CR, and consistency verdict."""
+        """Standard AHP consistency check using Mw = lambda*w."""
         n = len(matrix)
-        if n < 2:
-            return {'lambda_max': n, 'consistency_index': 0.0,
-                    'consistency_ratio': 0.0, 'is_consistent': True, 'random_index': 0.0}
+        if n < 3:
+            return {
+                'is_consistent': True, 
+                'consistency_ratio': 0.0, 
+                'consistency_index': 0.0, 
+                'lambda_max': float(n),
+                'weighted_sum': weights,
+                'lambda_vector': [1.0] * n
+            }
 
-        lambda_max = AHPCalculator.calculate_lambda_max(matrix, weights)
+        m = np.array(matrix, dtype=float)
+        w = np.array(weights, dtype=float)
+        
+        # Weighted Sum Vector = Matrix @ Weights
+        weighted_sum = (m @ w).tolist()
+        
+        # Lambda standard: (Aw)_i / w_i
+        lambda_vector = [(m @ w)[i] / (w[i] + 1e-10) for i in range(n)]
+        lambda_max = float(np.mean(lambda_vector))
+        
         ci = (lambda_max - n) / (n - 1)
         ri = RANDOM_INDEX.get(n, 1.49)
         cr = ci / ri if ri > 0 else 0.0
-
+        
         return {
-            'lambda_max': round(float(lambda_max), 4),
-            'consistency_index': round(float(ci), 4),
-            'consistency_ratio': round(float(cr), 4),
+            'is_consistent': cr < 0.10,
+            'consistency_ratio': float(cr),
+            'consistency_index': float(ci),
             'random_index': float(ri),
-            'is_consistent': cr <= 0.1
+            'lambda_max': float(lambda_max),
+            'weighted_sum': weighted_sum,
+            'lambda_vector': [float(x) for x in lambda_vector]
         }
 
     @staticmethod
-    def process_matrix(matrix: List[List[float]]) -> Dict:
-        """Full pipeline: normalize → weights → consistency."""
+    def get_inconsistent_pairs(matrix: List[List[float]], weights: List[float], criteria_names: List[str]) -> List[Dict]:
+        """Identify top 3 inconsistent pairs using epsilon = |aij - (wi/wj)|."""
+        n = len(matrix)
+        w = np.array(weights, dtype=float)
+        errors = []
+        for i in range(n):
+            for j in range(n):
+                if i != j:
+                    expected = w[i] / (w[j] + 1e-10)
+                    actual = matrix[i][j]
+                    epsilon = abs(actual - expected)
+                    errors.append({
+                        'pair': f"{criteria_names[i]} vs {criteria_names[j]}",
+                        'epsilon': float(epsilon),
+                        'actual': float(actual),
+                        'expected': float(expected)
+                    })
+        # Sort by epsilon descending and take top 3
+        return sorted(errors, key=lambda x: x['epsilon'], reverse=True)[:3]
+
+    @staticmethod
+    def min_max_normalize(values: List[float], higher_is_better: bool = True) -> List[float]:
+        """Perform min-max normalization, with support for cost criteria."""
+        if not values:
+            return []
+        v_min = min(values)
+        v_max = max(values)
+        span = v_max - v_min
+        if span == 0:
+            return [1.0] * len(values)
+        
+        normalized = [(v - v_min) / span for v in values]
+        if not higher_is_better:
+            normalized = [1.0 - n for n in normalized]
+        return normalized
+
+    @staticmethod
+    def process_matrix(matrix: List[List[float]], criteria_names: List[str] = None) -> Dict:
+        """Full pipeline with INFO 4178 intermediate data and inconsistency detection."""
+        m = np.array(matrix, dtype=float)
+        column_sums = m.sum(axis=0).tolist()
+        row_sums = m.sum(axis=1).tolist()
+        
         normalized = AHPCalculator.normalize_matrix(matrix)
         weights = AHPCalculator.calculate_weights(normalized)
         consistency = AHPCalculator.check_consistency(matrix, weights)
+        
+        inconsistent_pairs = []
+        if criteria_names and not consistency['is_consistent']:
+            inconsistent_pairs = AHPCalculator.get_inconsistent_pairs(matrix, weights, criteria_names)
+        
         return {
+            'column_sums': [round(x, 6) for x in column_sums],
+            'row_sums': [round(x, 6) for x in row_sums],
             'normalized': normalized,
             'weights': weights,
-            'consistency': consistency
+            'consistency': consistency,
+            'inconsistent_pairs': inconsistent_pairs
         }
 
     @staticmethod

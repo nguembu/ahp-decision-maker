@@ -47,6 +47,11 @@ class Criterion(models.Model):
     scale_type = models.CharField(max_length=20, choices=SCALE_TYPES, default='linear')
     weight = models.FloatField(default=0.0)
     order = models.IntegerField(default=0)
+    DIRECTION_CHOICES = [
+        ('benefit', 'Plus c\'est grand, mieux c\'est'),
+        ('cost', 'Plus c\'est petit, mieux c\'est'),
+    ]
+    direction = models.CharField(max_length=10, choices=DIRECTION_CHOICES, default='benefit')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
