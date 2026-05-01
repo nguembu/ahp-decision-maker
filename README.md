@@ -137,6 +137,32 @@ npm run dev
 
 L'application sera accessible à `http://localhost:5173`
 
+
+---
+### Option 2: Docker Compose (Recommandé pour la production)
+
+```bash
+git clone https://github.com/yourusername/ahp-decision-maker.git
+cd ahp-decision-maker
+
+# Créer les fichiers .env
+cp .env.example .env
+cp .env.frontend.example .env.frontend
+
+# Démarrer les services
+docker-compose up -d
+
+# Exécuter les migrations
+docker-compose exec web python manage.py migrate
+
+# Créer un superuser
+docker-compose exec web python manage.py createsuperuser
+
+# Accéder à l'application
+# Frontend: http://localhost:3000
+# Backend: http://localhost:8000
+# Admin: http://localhost:8000/admin
+```
 ---
 
 ## ⚙️ Configuration
