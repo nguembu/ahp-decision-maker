@@ -1,4 +1,3 @@
-cat > Dockerfile << 'EOF'
 # ============================================================
 # Stage 1 : Build du frontend (React/Vite)
 # ============================================================
@@ -46,4 +45,3 @@ EXPOSE 80
 
 # Lancer nginx + gunicorn ensemble
 CMD ["sh", "-c", "nginx && gunicorn --bind 0.0.0.0:8000 config.wsgi:application"]
-EOF
