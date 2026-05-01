@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: ahp-backend
+    env: python
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
+    startCommand: gunicorn config.wsgi:application
+    envVars:
+      - key: DEBUG
+        value: "false"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DB_ENGINE
+        value: django.db.backends.postgresql
+      - fromDatabase:
+          name: ahp-db
+          property: connectionString
+    region: frankfurt
+
+  - type: web
+    name: ahp-frontend
+    env: docker
+    dockerContext: ./frontend
+    dockerfilePath: ./frontend/Dockerfile
+    envVars:
+      - key: VITE_API_URL
+        value: https://ahp-backend.onrender.com/api
+    region: frankfurt
+
+databases:
+  - name: ahp-db
+    databaseName: ahp_db
+    user: ahp_user
+    plan: free
+    region: frankfurt

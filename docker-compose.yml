@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_DB=ahp_db
+      - POSTGRES_USER=ahp_user
+      - POSTGRES_PASSWORD=ahp_password
+
+  backend:
+    build: ./backend
+    command: python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn --bind 0.0.0.0:8000 config.wsgi:application
+    volumes:
+      - ./backend:/app
+    environment:
+      - DEBUG=True
+      - SECRET_KEY=django-insecure-dev-key
+      - ALLOWED_HOSTS=localhost,127.0.0.1,backend
+      - DB_ENGINE=django.db.backends.postgresql
+      - DB_NAME=ahp_db
+      - DB_USER=ahp_user
+      - DB_PASSWORD=ahp_password
+      - DB_HOST=db
+      - DB_PORT=5432
+    depends_on:
+      - db
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
