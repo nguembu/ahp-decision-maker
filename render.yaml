@@ -2,7 +2,7 @@ services:
   - type: web
     name: ahp-backend
     env: python
-    rootDir: backend                    # ✅ Pointe vers ./backend
+    rootDir: backend
     buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
     startCommand: python manage.py migrate --noinput && gunicorn config.wsgi:application
     envVars:
@@ -10,8 +10,6 @@ services:
         value: "false"
       - key: SECRET_KEY
         generateValue: true
-      - key: DB_ENGINE
-        value: django.db.backends.postgresql
       - key: ALLOWED_HOSTS
         value: ".onrender.com"
       - key: CORS_ALLOWED_ORIGINS
@@ -24,8 +22,8 @@ services:
   - type: web
     name: ahp-frontend
     env: docker
-    rootDir: frontend                   # ✅ Pointe vers ./frontend
-    dockerfilePath: ./Dockerfile        # ✅ Relatif à rootDir
+    dockerContext: frontend
+    dockerfilePath: frontend/Dockerfile
     envVars:
       - key: VITE_API_URL
         value: https://ahp-backend.onrender.com/api
